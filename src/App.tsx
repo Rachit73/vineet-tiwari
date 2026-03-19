@@ -4,10 +4,10 @@
  */
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import React, { useState, useEffect, useRef, Component, useCallback } from 'react';
+import React, { useState, useEffect, useRef, Component, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
+import { motion, AnimatePresence, useScroll, useTransform, useMotionValue, useSpring } from 'motion/react';
 import { 
   Code2, 
   Layers, 
@@ -370,6 +370,21 @@ const AdminDashboard = () => {
 };
 
 const BackgroundAnimation = () => {
+  // Memoize random values so they don't recalculate on every render
+  const paths = useMemo(() => [...Array(10)].map(() => ({
+    d: `M ${Math.random() * 1000} ${Math.random() * 1000} Q ${Math.random() * 1000} ${Math.random() * 1000} ${Math.random() * 1000} ${Math.random() * 1000}`,
+    duration: 10 + Math.random() * 10,
+    delay: Math.random() * 5
+  })), []);
+
+  const nodes = useMemo(() => [...Array(15)].map(() => ({
+    cx: Math.random() * 1000,
+    cy: Math.random() * 1000,
+    r: Math.random() * 2 + 1,
+    duration: 4 + Math.random() * 4,
+    delay: Math.random() * 10
+  })), []);
+
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none opacity-40">
       <svg className="w-full h-full" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
@@ -381,10 +396,10 @@ const BackgroundAnimation = () => {
         </defs>
         
         {/* Animated Lines */}
-        {[...Array(15)].map((_, i) => (
+        {paths.map((path, i) => (
           <motion.path
             key={i}
-            d={`M ${Math.random() * 1000} ${Math.random() * 1000} Q ${Math.random() * 1000} ${Math.random() * 1000} ${Math.random() * 1000} ${Math.random() * 1000}`}
+            d={path.d}
             stroke="#a855f7"
             strokeWidth="0.5"
             fill="none"
@@ -393,32 +408,32 @@ const BackgroundAnimation = () => {
               pathLength: [0, 1, 0], 
               opacity: [0, 0.3, 0],
               transition: { 
-                duration: 10 + Math.random() * 10, 
+                duration: path.duration, 
                 repeat: Infinity, 
                 ease: "easeInOut",
-                delay: Math.random() * 5
+                delay: path.delay
               } 
             }}
           />
         ))}
 
         {/* Pulsing Nodes */}
-        {[...Array(20)].map((_, i) => (
+        {nodes.map((node, i) => (
           <motion.circle
             key={`node-${i}`}
-            cx={Math.random() * 1000}
-            cy={Math.random() * 1000}
-            r={Math.random() * 2 + 1}
+            cx={node.cx}
+            cy={node.cy}
+            r={node.r}
             fill="#a855f7"
             initial={{ opacity: 0, scale: 0 }}
             animate={{ 
               opacity: [0, 0.8, 0], 
               scale: [0, 1.5, 0],
               transition: { 
-                duration: 4 + Math.random() * 4, 
+                duration: node.duration, 
                 repeat: Infinity, 
                 ease: "easeInOut",
-                delay: Math.random() * 10
+                delay: node.delay
               } 
             }}
           />
@@ -1183,18 +1198,24 @@ const Chatbot = ({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (open: boo
 // --- Main App ---
 
 export default function App() {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  
+  const smoothX = useSpring(mouseX, { damping: 30, stiffness: 150, mass: 0.5 });
+  const smoothY = useSpring(mouseY, { damping: 30, stiffness: 150, mass: 0.5 });
+
   const [isEnquiryOpen, setIsEnquiryOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      mouseX.set(e.clientX - 200);
+      mouseY.set(e.clientY - 200);
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+  }, [mouseX, mouseY]);
 
   return (
     <div className="relative bg-bg-dark min-h-screen selection:bg-purple-500/30">
@@ -1204,12 +1225,11 @@ export default function App() {
       
       {/* Custom Cursor Glow */}
       <motion.div 
-        className="fixed w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none z-0"
-        animate={{
-          x: mousePos.x - 200,
-          y: mousePos.y - 200,
+        className="fixed w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none z-0 will-change-transform"
+        style={{
+          x: smoothX,
+          y: smoothY,
         }}
-        transition={{ type: 'spring', damping: 30, stiffness: 150, mass: 0.5 }}
       />
 
       {/* Content */}
