@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "Enquiry": {
+      "title": "Enquiry",
+      "description": "A project enquiry from a potential client.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "brief": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "contacted", "closed"] },
+        "createdAt": { "type": "object", "description": "Firestore server timestamp" }
+      },
+      "required": ["fullName", "phone", "brief", "status", "createdAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A support chat session between a user and the AI bot.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The unique ID of the user (or anonymous ID)."
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": { "type": "string", "enum": ["user", "bot"] },
+              "text": { "type": "string" },
+              "timestamp": { "type": "number" }
+            }
+          }
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "The time the session was created (ms)."
+        },
+        "expiresAt": {
+          "type": "number",
+          "description": "The time the session should be deleted (ms)."
+        }
+      },
+      "required": ["userId", "messages", "createdAt", "expiresAt"]
+    }
+  },
+  "firestore": {
+    "/enquiries/{enquiryId}": {
+      "schema": "Enquiry",
+      "description": "Stores project enquiries from potential clients."
+    },
+    "/chat_sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Stores active support chat sessions."
+    }
+  }
+}

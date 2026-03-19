@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: chat_sessions
+    // Document ID: {sessionId}
+    // Fields:
+    //   - userId: string (required) - The UID of the user
+    //   - messages: list (required) - Array of message objects
+    //   - createdAt: number (required) - Creation timestamp
+    //   - expiresAt: number (required) - Expiration timestamp (24h later)
+    //
+    // Collection: enquiries
+    // Document ID: {enquiryId}
+    // Fields:
+    //   - fullName: string (required)
+    //   - phone: string (required)
+    //   - brief: string (required)
+    //   - status: string (required, enum: ['new', 'contacted', 'closed'])
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "vt902214@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidChatSession(data) {
+      return data.userId is string &&
+             data.messages is list &&
+             data.messages.size() <= 100 &&
+             data.createdAt is number &&
+             data.expiresAt is number &&
+             data.keys().hasAll(['userId', 'messages', 'createdAt', 'expiresAt']) &&
+             data.keys().hasOnly(['userId', 'messages', 'createdAt', 'expiresAt']);
+    }
+
+    function isValidEnquiry(data) {
+      return data.fullName is string && data.fullName.size() > 0 && data.fullName.size() < 100 &&
+             data.phone is string && data.phone.size() > 0 && data.phone.size() < 50 &&
+             data.brief is string && data.brief.size() > 0 && data.brief.size() < 2000 &&
+             data.status in ['new', 'contacted', 'closed'] &&
+             data.createdAt is timestamp &&
+             data.keys().hasAll(['fullName', 'phone', 'brief', 'status', 'createdAt']) &&
+             data.keys().hasOnly(['fullName', 'phone', 'brief', 'status', 'createdAt']);
+    }
+
+    match /chat_sessions/{sessionId} {
+      // Allow read if owner or admin
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      
+      // Allow create if authenticated and data is valid
+      allow create: if isAuthenticated() && 
+                    isValidChatSession(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      
+      // Allow update if owner and data is valid
+      allow update: if isAuthenticated() && 
+                    isOwner(resource.data.userId) && 
+                    isValidChatSession(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+
+      // Allow delete if owner or admin
+      allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+    }
+
+    match /enquiries/{enquiryId} {
+      // Allow anyone to create an enquiry if valid
+      allow create: if isValidEnquiry(request.resource.data) && 
+                    request.resource.data.status == 'new';
+      
+      // Allow admin to read, update, delete
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Allow users to read their own profile
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}
