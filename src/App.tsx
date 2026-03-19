@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, Component, useCallback, useMemo } f
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence, useScroll, useTransform, useMotionValue, useSpring } from 'motion/react';
+import { Analytics } from '@vercel/analytics/react';
 import { 
   Code2, 
   Layers, 
@@ -1265,6 +1266,9 @@ export default function App() {
       >
         <AdminDashboard />
       </Modal>
+      
+      {/* Vercel Analytics */}
+      <Analytics />
     </div>
   );
 }
