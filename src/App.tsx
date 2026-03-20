@@ -852,6 +852,26 @@ const Footer = () => {
 
 // --- Chatbot ---
 
+const ChatMessage = React.memo(({ msg }: { msg: { role: 'user' | 'bot', text: string } }) => {
+  return (
+    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[85%] p-6 rounded-[2rem] text-base leading-relaxed shadow-xl ${
+        msg.role === 'user' 
+          ? 'bg-purple-600 text-white rounded-tr-none' 
+          : 'bg-zinc-800 text-gray-200 border border-white/5 rounded-tl-none'
+      }`}>
+        {msg.role === 'bot' ? (
+          <div className="markdown-body prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+          </div>
+        ) : (
+          msg.text
+        )}
+      </div>
+    </div>
+  );
+});
+
 const Chatbot = ({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (open: boolean) => void }) => {
   const [user] = useAuthState(auth);
   const [messages, setMessages] = useState<{ role: 'user' | 'bot', text: string, timestamp: number }[]>([]);
@@ -973,7 +993,7 @@ const Chatbot = ({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (open: boo
       }
 
       const responseStream = await ai.models.generateContentStream({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: formattedHistory,
         config: {
           systemInstruction: "You are a helpful, highly capable assistant for a premium website development agency called 'WEB DEV'. You answer questions related to website development, design, scaling, and performance. Be professional, concise, conversational, and friendly. If asked about pricing or starting a project, suggest they use the 'Get in Touch' button in the contact section. Keep your answers brief and easy to read.",
@@ -986,17 +1006,29 @@ const Chatbot = ({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (open: boo
       // Add an initial empty bot message
       setMessages(prev => [...prev, { role: 'bot', text: '', timestamp: Date.now() }]);
 
+      let lastUpdate = Date.now();
       for await (const chunk of responseStream) {
         const c = chunk as GenerateContentResponse;
         if (c.text) {
           botText += c.text;
-          setMessages(prev => {
-            const updated = [...prev];
-            updated[updated.length - 1].text = botText;
-            return updated;
-          });
+          const now = Date.now();
+          if (now - lastUpdate > 50) {
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1].text = botText;
+              return updated;
+            });
+            lastUpdate = now;
+          }
         }
       }
+      
+      // Final update to ensure we have the complete text
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1].text = botText;
+        return updated;
+      });
 
       if (!botText) {
         botText = "I'm sorry, I couldn't process that.";
@@ -1135,21 +1167,7 @@ const Chatbot = ({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (open: boo
                   </div>
                 )}
                 {messages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-6 rounded-[2rem] text-base leading-relaxed shadow-xl ${
-                      msg.role === 'user' 
-                        ? 'bg-purple-600 text-white rounded-tr-none' 
-                        : 'bg-zinc-800 text-gray-200 border border-white/5 rounded-tl-none'
-                    }`}>
-                      {msg.role === 'bot' ? (
-                        <div className="markdown-body prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        msg.text
-                      )}
-                    </div>
-                  </div>
+                  <ChatMessage key={i} msg={msg} />
                 ))}
                 {isTyping && (
                   <div className="flex justify-start">
